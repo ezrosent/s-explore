@@ -7,7 +7,7 @@
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE DataKinds             #-}
 module UTLC
-    ( UTLC(..), takeStep, test1
+    ( UTLC(..), takeStep, test1, eval, lam, var, manySteps
     ) where
 
 import           Control.Monad                    (liftM)
@@ -22,6 +22,9 @@ data UTLC = Id (Name UTLC) | Lam (Bind (Name UTLC) UTLC) | App UTLC UTLC
 
 var :: T.Text -> UTLC
 var =  Id . s2n . T.unpack
+
+lam :: T.Text -> UTLC -> UTLC
+lam st = Lam . bind (s2n $ T.unpack st)
 
 bigStep :: UTLC -> FreshMT Maybe UTLC
 bigStep (Id _)      = lift Nothing
@@ -45,6 +48,15 @@ takeStep (App x1@(App x11 x12) x2) =  do
   return $ case r1 of
     Nothing -> r2 >>= Just . App x1
     Just v  -> Just $ App v x2
+
+eval :: UTLC -> Maybe UTLC
+eval = runFreshMT . bigStep
+
+-- run 'takeStep' many times. Should be same as 'eval'
+manySteps :: UTLC -> Maybe UTLC
+manySteps = runFreshM . go
+  where go :: UTLC -> FreshM (Maybe UTLC)
+        go u = maybe (return $ case u of {x@(Lam _) -> Just x; _ -> Nothing}) go =<< takeStep u
 
 instance Alpha UTLC
 instance Subst UTLC UTLC where
