@@ -1,0 +1,218 @@
+\documentclass[12pt]{article}
+\usepackage{graphicx,datetime,fancyhdr,amsmath,amssymb,amsthm,subfig,url,hyperref}
+\usepackage{paralist,semantic,minted,latexsym}
+\usepackage{titling,float,multicol,setspace,titlesec,framed}
+\usepackage[margin=1in]{geometry}
+%----------------------- Macros and Definitions --------------------------
+
+\renewcommand{\theenumi}{\bf \Alph{enumi}}
+\setlength{\parindent}{0.3cm}
+\setlength{\parskip}{0.0cm}
+\fancypagestyle{plain}{}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LO,RE]{\sffamily\bfseries\large Semantics Exploration}
+\fancyhead[RO,LE]{\sffamily\bfseries\large Eli Rosenthal}
+\fancyfoot[RO,LE]{\sffamily\bfseries\thepage}
+\renewcommand{\headrulewidth}{1pt}
+\renewcommand{\footrulewidth}{1pt}
+\graphicspath{{figures/}}
+\setlength{\droptitle}{-1cm}
+\titleformat*{\section}{\large\bfseries}
+\titleformat*{\subsection}{\normalsize\bfseries}
+\newcommand{\com}[2]{\lbrack#1,#2\rbrack}
+\newcommand{\ns}{\triangleleft}
+\newcommand{\co}[2]{#1 #2 #1^{-1}}
+\newcommand{\aut}{\text{Aut}}
+\newcommand{\GL}{\text{GL}}
+\newcommand{\SL}{\text{SL}}
+\newcommand{\F}{\mathbb{F}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\ob}{\textit{Ob}}
+\newcommand{\csa}{\textsc{CS-A}}
+\newcommand{\csb}{\textsc{CS-B}}
+\newcommand{\uf}[1]{\textsf{unfold}~[#1]}
+\newcommand{\fl}[1]{\textsf{fold}~[#1]}
+\newcommand{\R}{\mathcal{R}}
+\newcommand{\E}{\mathbb{E}}
+\renewcommand{\L}{\mathcal{L}}
+
+\renewcommand{\S}[1]{\textsc{#1}}
+\renewcommand{\hom}{\textit{Hom}}
+\mathlig{|->}{\mapsto}
+\mathlig{~>}{\leadsto}
+\mathlig{<<<}{\sqsubseteq}
+%-------------------------------- Title ----------------------------------
+\begin{document}
+
+\begin{abstract}
+
+We define a notion of \emph{surprise} between two programming languages which
+provides a formal analog to the notion that ``A user experienced with Scheme is
+surprised by feature $x$ of Javascript''. Along the way we give clear
+definitions of what it means for a language feature to be \emph{orthogonal}, as
+well as provide an automated tool for exploring (in a purely syntactic manner)
+the extent to which a language implements a feature in an unusual way.
+
+\end{abstract}
+
+\section{Introduction: Two Parables}
+
+We begin considering an idealized version of two common cases of ``programming
+language aquisition.''
+
+
+\subsection{The Intro CS Student}
+
+Consider a student X taking an introductory programming course (\csa). X has no prior
+programming experience, and their first assignment is to use their language
+$L_0$ as a calculator. $L_0$ is a small ``expression language'' with numbers and
+basic arithmetic operations. 
+
+\begin{minted}[mathescape=true]{scheme}
+;; Assignment 1
+; Compute $\sqrt{157482506564341206945618310642111308294618078190384348521}$
+(sqrt 157482506564341206945618310642111308294618078190384348521)
+; => 12549203423498290193999432211
+\end{minted}
+
+In their next assignment, X now has access to conditional branching and
+functions. To use these features, X writes their assignment in $L_1$, which also
+has all of the features of $L_0$.
+
+\begin{minted}[mathescape=true]{scheme}
+;; Assignment 2
+; Write a function which given two numbers $x,y$ computes $\sqrt{xy}$
+(define (f x y) (sqrt (* x y)))
+\end{minted}
+
+While X views this assignment as building on previous techniques, they don't
+realize that the semantics of \verb|sqrt| and \verb|*| have changed!  In $L_0$,
+they were special forms built into the language, and in $L_1$ they are
+implemented as functions in the standard library. X may not have noticed this
+because there are few \emph{observations} that they could make on language output
+that could distinguish these two scenarios. 
+
+The following semester, X's instructors have decided they have to learn a
+``practical language'' because X and their classmates have to be more attractive
+to employers, or some other bullshit reason; X's class (\csb) is hence taught in
+python! Python has different syntax than the $L_i$ that X learned in \csa, so X
+does some of the \csa~assignments and tries to translate them to python.
+
+\begin{minted}[mathescape=true]{python}
+# Assignment 1
+from math import sqrt
+sqrt(157482506564341206945618310642111308294618078190384348521)
+# => 1.254920342349829e+28
+# Assignment 2
+def f(x):
+    return sqrt(x * y)
+\end{minted}
+
+Both of these examples surprised X! In assignment 1, the first answer is wrong
+(python's \verb|math.sqrt| does not provide an exact answer). In assignment 2, X
+made a mistake. However, X only realized their mistake after running a test
+case, while $L_{i \geq 1}$ produced a static (``compile-time'') error if there
+are free variables in a function body\footnote{We note that the Full Monty paper
+exhibits many more python features that are surprising in this sense. A
+seasoned schemer may be surprised by some edge-cases in python generators that
+make them hard to interpret through a straight-forward CPS transform (?).}.
+
+
+\subsection{The Programming Languages Expert}
+
+Whenever a new language begins to gain traction, it is common for a PL theorist
+to play around with pathological examples of programs that behave
+``unexpectedly.''\footnote{There is a variant of this parable in which someone
+  who is experienced using a language is surprised by some edge-case in the
+  language: demonstrating that their mental model of the language was not fully
+  in line with the implementation. We can call these variants ``Wat talk''
+  variants} 
+This is often a rather useful exercise: it can help programmers avoid
+hard-to-diagnose bugs\footnote{Shriram Krishnamurthy's Google+ posts
+with \#swiftlang are probably in this category.}, and it is often a first step to
+developing a practical or \emph{tested semantics} for a language without a
+formal specification. Such specifications, in turn, can lead to type systems and
+static analyses for the language (hence catching more bugs)\footnote{Joe's
+Javascript types paper was used in Facebook's Flow, right?}.
+
+\subsection{When are Languages Surprising?}
+
+We observe that the two instances cases considered above are both instances of
+the same notion of surprise: a programmer has some underlying model of how evaluation
+in the language ought to proceed, but the language does something else. In the
+case of the PL theorist, the language isn't $L_1$ or $L_0$\footnote{Mainly
+  because these languages don't exist, though they bare some resemblance with the HtDP
+  teaching languages.}; it may be some
+variant of the $\lambda$-calculus. Moreover, as the first parable alludes to, it
+is possible to have languages with respect to which some other languages are
+\emph{not} surprising. $L_1$, while it had different semantics for $L_0$'s
+features, was a more comfortable next step than python. Another way of stating
+this is that the features that $L_1$ added to $L_0$ are \emph{orthogonal} to the
+preexisting features.
+
+\section{A Semantic Definition of Surprise}
+% evaluation rules, semantics etc.
+
+In this section we identify a language $\L$ with its \emph{reduction semantics}:
+i.e.~the tuple $(\R_\L, \E_\L, ~>_\L, =>_\L)$ denoting the set of a set of
+redexes, evaluation contexts, reduction relation, and transition relation,
+respectively.\footnote{Using the terminology of \textit{Design Concepts in
+Programming Languages}}
+
+We say $\L'$ is a \emph{sublanguage} of $\L$ (denoted $\L' \subseteq \L$) if
+each component of $\L'$ is a subset of its corresponding component in $\L$.
+$\L_1$ \emph{partially models} $\L_2$ if there are functions $m_1 : \R_{\L_1} ->
+\R_{\L_2}$ and $m_2 : \E_{\L_1} -> \E_{\L_2}$.
+
+Note that the existence of a partial model induces a sublanguage in the language
+being modeled, given a model $m=(m_1,m_2)$ we can denote such a sublanguage $m(\L_1)$.
+Given a partial model $m : \L_1 -> \L_2$  we therefore have another language
+$\L_{1 -> 2}$ given by
+
+\textbf{Note: this is actually an easier definition when we just think of the
+single reduction relation in a structural operational semantics}
+
+\begin{align*}
+\intertext{(This is the general idea, but something may be messed up here)}
+  \R_{\L_{1 -> 2}} &= \R_{L_2} \\
+  \E_{\L_{1 -> 2}} &= \E_{\L_2}  \\
+  ~>_{\L_{1 -> 2}} &= \{(r, r')~:~r ~>_{\L_2}r' \text{ and } r \not\in m(\L_1)\} \cup 
+  \{(m_1(r), m_1(r'))~:~r~>_{\L_1}r'\}\\
+  =>_{\L_{1 -> 2}} &= \{(e\{r\}, e\{r'\})~:~r,r' \in \R_{\L_2}.~e\{r\} =>_{\L_2}e\{r'\} \text{ and } e \not\in m(\L_1)\}\\ 
+  & \cup 
+  \{(m_2(e)\{m_1(r)\}, m_2(e)\{m_1(r')\})~:~r,r' \in m_1(\R_{\L_1})~e\{r\}=>_{\L_1}e\{r'\}\}
+\end{align*}
+
+We say that $\L_2$ is \emph{surprising with respect to $\L_1$} if $=>_{\L_{1 ->
+    2}} \cup =>_{\L_2}$ yields a non-deterministic\footnote{We assume that the
+  semantics were deterministic beforehand; accounting for non-determinism is
+  doable, it's just harder to write down.} relation. $\L_{1->2}$ is an alternative
+semantics for the syntax of $\L_2$; it is the ``mental model'' that a programmer
+might have of $\L_2$. This creates surprises when letting $\L_{1->2}$ reduce an
+expression for any number of steps before handing the expression back to the
+$\L_1$ semantics yields a different result than just evaluating all reduction
+steps in $\L_1$.\footnote{TODO: add a helpful diagram} If $\L_2$ is not
+surprising with respect to $\L_1$, then we say language constructs present in
+$\L_2$ but not in $m(\L_1)$ are \textit{orthogonal} to those in $m(\L_1)$.
+
+
+\section{Practical Implementation}
+% describe the implementation effort with respect to the lambda calculus
+
+To make this definition practical, we can restrict ourselves to operating on the
+syntax of the language being modeled, provide syntactic mappings to a language
+\emph{with} a semantics (e.g.~the $\lambda$-calculus), and non-deterministically
+substitute equivalent terms in the second language into their counterparts in
+the first. Given an interpreter for the modeled language, we can then search for
+surprises in an automated fashion.
+
+\section{Denotational Setting}
+We can give the same definition in the context of denotational semantics. This
+gives a more concise characterization of surprise in terms of commutative
+diagrams.
+% describe the "Kan extension" at work here. This relates to what Shriram
+% mentioned with big-step vs small-step.
+
+
+\end{document}
