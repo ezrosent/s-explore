@@ -2,11 +2,16 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE DataKinds             #-}
 module UTLC
     ( UTLC(..), takeStep, test1
     ) where
 
 import           Control.Monad                    (liftM)
+import           Control.Monad.Trans
 import qualified Data.Text                        as T
 import           Data.Typeable                    (Typeable)
 import           GHC.Generics                     (Generic)
@@ -17,6 +22,17 @@ data UTLC = Id (Name UTLC) | Lam (Bind (Name UTLC) UTLC) | App UTLC UTLC
 
 var :: T.Text -> UTLC
 var =  Id . s2n . T.unpack
+
+bigStep :: UTLC -> FreshMT Maybe UTLC
+bigStep (Id _)      = lift Nothing
+bigStep r@(Lam _)   = return r
+bigStep (App c1 c2) = do
+  r1 <- bigStep c1
+  r2 <- bigStep c2
+  (x, body) <- case r1 of
+    Lam x1 -> unbind x1
+    _      -> lift Nothing
+  bigStep $ subst x r2 body
 
 takeStep :: UTLC -> FreshM (Maybe UTLC)
 takeStep (Id _) = return Nothing

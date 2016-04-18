@@ -15,8 +15,15 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     UTLC, LangHierarchy, RoadMap 
-  build-depends:       base >= 4.7 && < 5, unbound-generics, text, type-level-sets >= 0.6, type-list, QuickCheck >= 2, lens >= 4
+  exposed-modules:     UTLC, LangHierarchy, RoadMap
+  build-depends:       base >= 4.7 && < 5
+                     , unbound-generics
+                     , text
+                     , type-level-sets >= 0.6
+                     , type-list
+                     , QuickCheck >= 2
+                     , lens >= 4
+                     , mtl >= 2.1
   default-language:    Haskell2010
 
 executable s-explore-exe
