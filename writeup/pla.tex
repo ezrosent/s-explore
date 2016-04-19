@@ -1,6 +1,6 @@
 \documentclass[12pt]{article}
 \usepackage{graphicx,datetime,fancyhdr,amsmath,amssymb,amsthm,subfig,url,hyperref}
-\usepackage{paralist,semantic,minted,latexsym}
+\usepackage{paralist,semantic,minted,latexsym,diagrams}
 \usepackage{titling,float,multicol,setspace,titlesec,framed}
 \usepackage[margin=1in]{geometry}
 %----------------------- Macros and Definitions --------------------------
@@ -196,21 +196,109 @@ steps in $\L_1$.\footnote{TODO: add a helpful diagram} If $\L_2$ is not
 surprising with respect to $\L_1$, then we say language constructs present in
 $\L_2$ but not in $m(\L_1)$ are \textit{orthogonal} to those in $m(\L_1)$.
 
+\section{How this might look}
 
-\section{Practical Implementation}
-% describe the implementation effort with respect to the lambda calculus
+There are two options for how this could look in practice. Say we want to assess
+the implementation of scoping for a particular language with respect to that of
+the untyped $\lambda$-calculus. There are two ways that I see we could do this.
+Jack mentioned something about the expressive power of languages as stated in
+terms of \emph{what you can resugar}. That notion sounds directly applicable to
+this problem.
 
-To make this definition practical, we can restrict ourselves to operating on the
-syntax of the language being modeled, provide syntactic mappings to a language
-\emph{with} a semantics (e.g.~the $\lambda$-calculus), and non-deterministically
-substitute equivalent terms in the second language into their counterparts in
-the first. Given an interpreter for the modeled language, we can then search for
-surprises in an automated fashion.
+\subsection{The Easy Way}
+
+Take terms that only include UTLC-like features. This would mean very basic
+functions (depending on the mapping, probably just function application, and
+maybe assignment), and either evaluating them to completion (in the big-step
+setting) or replacing them with an equivalent term (in the small-step setting).
+This is less likely to have strange edge-cases than the option below, but
+things like free variables are hard in this case, so we still can't throw errors
+related to unbound identifiers. The bigger issue is that we narrow the scope of
+our search, potentially losing out on useful examples of how certain features
+interact with one another.
+
+Open questions here include whether we can get away with doing this for
+sub-terms (the answer seems yes for pure languages, and no for anything with
+state), or if we have to do this for full programs only (in which case it
+becomes less interesting). We don't have this issue as much in the following
+approach.
+
+\subsection{The Cooler-but-might-not-work way}
+
+Allow for the inclusion of terms that we do not understand (arrays, indexing,
+objects) but map them to \emph{uninterpreted values}. We can then treat these
+uninterpreted values like free identifiers (not having an LHS for an evaluation
+relation) and map them back as before. For example, given the following:
+
+\begin{minted}{python}
+class Foo(object): ...
+
+def foo(bar):
+  x = Foo(bar)
+  return x.baz(foobar)
+foobar = 3
+foo(4)
+\end{minted}
+
+We could map this program to a variant of the $\lambda$-calculus with
+sequencing (useless here, as there is no mutation) and \texttt{let} (using scheme
+syntax here):
+
+\begin{minted}{scheme}
+(do
+  (uninterp (class Foo(object): ... ))
+  (let ((foo (lambda bar
+              (let ((x (Foo bar)))
+                ((. x baz) foobar))))
+        (foobar 3))
+    (foo 4)))
+\end{minted}
+
+In such a way that we have an inverse that gives us back the same program. I
+think it's pretty clear how that would work in this case. Evaluating this
+code to completion should return the same context, but with the \texttt{(foo
+4)} statement replaced with.
+
+\begin{minted}{scheme}
+(let ((x (Foo bar)))
+  ((. x baz) foobar1))
+\end{minted}
+
+Where \texttt{foobar1} is a fresh identifier. This code no longer runs to
+completion in python, so we have discovered something interesting! This also
+gives us a much simpler algorithm for searching for a surprise, we just
+evaluate as much of the expression as we can and map it back in.
+
+\textbf{But there is a problem!} What if we had named the class
+\texttt{foobar1}\footnote{While it is a common convention in python to start
+  function names with a lower-case letter and class names with upper-case,
+  this isn't true for, say, C-like languages where it depends on the style
+guide}? Then our renaming would cause a previously free identifier to be
+bound. There doesn't appear to be an easy way to avoid this for languages
+where different features share a namespace. We could attach asterisks to
+cases such as these, or we could try to grep the source of the original
+program for the identifiers we generate. Many possible work-arounds, but it
+doesn't sound clean. One way to phrase this in terms of the language above
+is that we are not modelling all of a specific feature (like scope) by
+mapping this to the $\lambda$-calculus without classes. On the other hand
+maybe this is a good thing?
+
+
+% \section{Practical Implementation}
+% % describe the implementation effort with respect to the lambda calculus
+
+% To make this definition practical, we can restrict ourselves to operating on the
+% syntax of the language being modeled, provide syntactic mappings to a language
+% \emph{with} a semantics (e.g.~the $\lambda$-calculus), and non-deterministically
+% substitute equivalent terms in the second language into their counterparts in
+% the first. Given an interpreter for the modeled language, we can then search for
+% surprises in an automated fashion.
 
 \section{Denotational Setting}
 We can give the same definition in the context of denotational semantics. This
 gives a more concise characterization of surprise in terms of commutative
 diagrams.
+
 % describe the "Kan extension" at work here. This relates to what Shriram
 % mentioned with big-step vs small-step.
 
