@@ -100,11 +100,9 @@ instance Subst UT (UT1 UT) where
   isCoerceVar (Id a) = Just $ SubstCoerce a (Just . _unMu)
   isCoerceVar _      = Nothing
 
-
 instance Subst UT (UT1 UT) => Subst UT UT where
   isvar (Mu (Id a)) = Just (SubstName a)
   isvar _           = Nothing
-
 
 lam :: (Typeable a, Alpha a) => T.Text -> a -> UT1 a
 lam x y = Lam $ bind (s2n (T.unpack x)) y
@@ -147,12 +145,14 @@ leftToRight = doRewrite $ \case
 
 -- I wonder if there is a way to derive this usefully. It does not use any knowledge beyond the
 -- Original 'Subst' instance
-instance Subst U2 (CR UT1 CL1) where
+instance (Generic (a (CR UT1 a)),
+         (Subst (CR UT1 a) (a (CR UT1 a))),
+         (Subst (CR UT1 a) (UT1 (CR UT1 a)))) => Subst (CR UT1 a) (CR UT1 a) where
   isCoerceVar (CR (Left (Id c))) =  Just $ SubstCoerce c Just
   isCoerceVar _ = Nothing
 
-instance Subst (CR UT1 CL1) (CL1 (CR UT1 CL1)) where
-  isCoerceVar _ =  Nothing
+instance Subst U2 (CL1 U2) where
+  isCoerceVar _ = Nothing
 
 instance Subst (CR UT1 CL1) (UT1 (CR UT1 CL1)) where
   isCoerceVar (Id a) = Just $ SubstCoerce a $ \case CR (Left a) -> Just a
