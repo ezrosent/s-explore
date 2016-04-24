@@ -5,6 +5,7 @@ module Recur2 where
 -- Automate the mutual recursion seen in 'Recur' module
 
 import           Control.Lens
+import           Control.Monad (liftM)
 import           Data.Data
 import           Data.Data.Lens                        (template)
 import qualified Data.Text                             as T
@@ -48,8 +49,25 @@ test8 = do
   (x, body) <- unbind ids
   return $ subst x (Mu $ var "y") body
 
-inject :: Functor a => Mu a -> CR a b
-inject (Mu a) = CR $ Left $ fmap inject a
+injectL :: Functor a => Mu a -> CR a b
+injectL = CR . Left . fmap injectL . _unMu
+
+injectR :: Functor b => Mu b -> CR a b
+injectR = CR . Right . fmap injectR . _unMu
+
+projectL :: Traversable a => CR a b -> Maybe (Mu a)
+projectL = \case (CR (Left a)) -> Mu <$> (projectL' a)
+                 _ -> Nothing
+  where projectL' :: Traversable a => (a (CR a b)) -> Maybe (a (Mu a))
+        projectL' =  mapM (\case (CR (Left a))  -> Mu `liftM` projectL' a
+                                 (CR (Right a)) -> Nothing)
+
+projectR :: Traversable b => CR a b -> Maybe (Mu b)
+projectR = \case (CR (Right a)) -> Mu <$> (projectR' a)
+                 _ -> Nothing
+  where projectR' :: Traversable b => (b (CR a b)) -> Maybe (b (Mu b))
+        projectR' =  mapM (\case (CR (Right a))  -> Mu `liftM` projectR' a
+                                 (CR (Left a)) -> Nothing)
 
 doRewrite :: ((UnrollC U2) -> (UnrollC U2)) -> U2 -> U2
 doRewrite f u = u & (template :: Traversal' U2 (UnrollC U2)) %~ f
@@ -59,17 +77,28 @@ leftToRight = doRewrite $ \case
                             Right (Lam2 x y) -> Left $ Lam $ bind (s2n x) y
                             Right (App2 x y) -> Left $ App x y
                             Right (Id2 x)    -> Left $ Id (s2n x)
-                            x -> x
+                            x                -> x
+
+rightToLeft :: U2 -> U2
+rightToLeft = doRewrite $ \case
+                            Left (Lam b)   -> runFreshM $ (\(x,body) -> return $ Right (Lam2 (name2String x) body)) =<< unbind b
+                            Left (App x y) -> Right $ App2 x y
+                            Left (Id n)    -> Right $ Id2 (name2String n)
+                            x              -> x
 
 fuzz :: U2 -> U2
 fuzz u = u & (template :: Traversal' U2 (UT1 U2)) %~ (eta.liftBeta)
   where eta :: UT1 U2 -> UT1 U2
         eta x = App (CR $ Left (Lam (bind (s2n "x") (CR $ Left x)))) (CR $ Left (Lam (bind (s2n "x") (CR $ Left (Id (s2n "x"))))))
         -- this isn't quite right
-        beta :: UT1 U2 -> (CR UT1 CL1)
+        beta :: UT1 U2 -> U2
         beta (App (CR (Left (Lam z))) y) = runFreshM $ (\(x, body) -> return $ subst x y body) =<< unbind z
         beta x = CR (Left x)
         liftBeta :: UT1 U2 -> UT1 U2
         liftBeta x = case beta x of
                        (CR (Left z)) -> z
                        _             -> x
+
+-- take an instance of CL1, perform some transformations on it, convert it back
+circuit :: Mu CL1 -> Maybe (Mu CL1)
+circuit = projectR . rightToLeft . fuzz . rightToLeft . injectR

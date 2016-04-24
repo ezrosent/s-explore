@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveDataTypeable        #-}
+{-# LANGUAGE DeriveFoldable            #-}
 {-# LANGUAGE DeriveFunctor             #-}
 {-# LANGUAGE DeriveGeneric             #-}
+{-# LANGUAGE DeriveTraversable         #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE KindSignatures            #-}
@@ -35,7 +37,7 @@ data UT1 a = Id (Name a) | Lam (Bind (Name a) a) | App a a
   deriving (Show)
 
 data CL1 a = Id2 String | Lam2 String a | App2 a a
-  deriving (Eq, Ord, Show, Functor, Data, Typeable, Generic)
+  deriving (Eq, Ord, Show, Functor, Data, Typeable, Generic, Foldable, Traversable)
 
 makePrisms ''UT1
 makePrisms ''CL1
@@ -96,3 +98,4 @@ deriving instance (Typeable (a (CR a b)), Typeable (b(CR a b))) => Typeable (CR 
 deriving instance (Generic (a (CR a b)), Generic (b(CR a b))) => Generic (CR a b)
 deriving instance (Typeable a, Typeable b, Data (a (CR a b)), Data (b (CR a b))) => Data (CR a b)
 instance (Show (a (CR a b)), Show (b (CR a b)), Generic (a (CR a b)),Generic (b (CR a b)), Alpha (a (CR a b)), Alpha (b (CR a b)) ) => Alpha (CR a b)
+
