@@ -1,5 +1,7 @@
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies      #-}
 module Recur2 where
 -- Automate the mutual recursion seen in 'Recur' module
@@ -13,6 +15,7 @@ import           Types
 import           Unbound.Generics.LocallyNameless
 import           Unbound.Generics.LocallyNameless.Bind (Bind (..))
 import           Unbound.Generics.LocallyNameless.Name (Name (..))
+import GHC.Generics
 
 type BindName a = Bind (Name a) a
 
@@ -86,18 +89,28 @@ rightToLeft = doRewrite $ \case
                             Left (Id n)    -> Right $ Id2 (name2String n)
                             x              -> x
 
-fuzz :: U2 -> U2
-fuzz u = u & (template :: Traversal' U2 (UT1 U2)) %~ (eta.liftBeta)
-  where eta :: UT1 U2 -> UT1 U2
-        eta x = App (CR $ Left (Lam (bind (s2n "x") (CR $ Left x)))) (CR $ Left (Lam (bind (s2n "x") (CR $ Left (Id (s2n "x"))))))
-        -- this isn't quite right
-        beta :: UT1 U2 -> U2
+-- And now to do generic fuzzing on an interleaved AST
+type WU a = CR UT1 a
+
+-- Large number of type-class constraints, but these can genereally be discharged automatically
+-- (See Types.hs)
+fuzz' :: (r ~ (a (WU a))
+         , Typeable a
+         , Data r, Generic r, Alpha r
+         , Subst (WU a) r , Subst (WU a) (UT1 (CR UT1 a)))
+      => WU a -> WU a
+fuzz' u = u & temp %~ (eta.liftBeta)
+  where temp :: (r ~ (a (WU a)), Typeable a, Data r, Generic r, Alpha r)
+             => Traversal' (WU a) (UT1 (WU a))
+        temp = template
+        eta x = App (CR $ Left (Lam (bind (s2n "x") (CR $ Left x))))
+                    (CR $ Left (Lam (bind (s2n "x") (CR $ Left (Id (s2n "x"))))))
         beta (App (CR (Left (Lam z))) y) = runFreshM $ (\(x, body) -> return $ subst x y body) =<< unbind z
         beta x = CR (Left x)
-        liftBeta :: UT1 U2 -> UT1 U2
-        liftBeta x = case beta x of
-                       (CR (Left z)) -> z
-                       _             -> x
+        liftBeta x = case beta x of (CR (Left z)) -> z
+                                    _             -> x
+fuzz :: U2 -> U2
+fuzz = fuzz'
 
 -- take an instance of CL1, perform some transformations on it, convert it back
 circuit :: Mu CL1 -> Maybe (Mu CL1)
