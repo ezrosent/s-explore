@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds           #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE DeriveFoldable            #-}
 {-# LANGUAGE DeriveFunctor             #-}
@@ -13,6 +14,7 @@
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE TemplateHaskell           #-}
 {-# LANGUAGE TypeFamilies              #-}
+{-# LANGUAGE TypeOperators             #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
 {-# LANGUAGE UndecidableInstances      #-}
 module Types where
@@ -22,6 +24,7 @@ import           Data.Data
 import           Data.Data.Lens
 import qualified Data.Text                             as T
 import           Data.Typeable                         (Typeable)
+import           GHC.Exts
 import           GHC.Generics                          (Generic)
 import           Unbound.Generics.LocallyNameless
 import           Unbound.Generics.LocallyNameless.Bind (Bind (..))
@@ -30,8 +33,15 @@ import           Unbound.Generics.LocallyNameless.Name (Name (..))
 newtype Mu (f :: * -> *)                = Mu  { _unMu :: f (Mu f) }
 makeLenses ''Mu
 
+
+
 newtype CR a b = CR { _unCR :: Either (a (CR a b)) (b (CR a b)) }
 makeLenses ''CR
+
+type a :+: b = CR a b
+--TODO: nice thing with Iso etc. from Lens
+
+
 
 data UT1 a = Id (Name a) | Lam (Bind (Name a) a) | App a a
   deriving (Show)
@@ -75,7 +85,14 @@ instance (Generic (a (CR UT1 a)),
   isCoerceVar _ = Nothing
 
 instance Subst U2 (CL1 U2) where
-  isCoerceVar _ = Nothing
+  isvar = const Nothing
+  {-
+  -- todo: this is wrong? maybe not, something along these lines could be more appropriate
+  -- import Data.Foldable (asum)
+  isCoerceVar x = asum c
+    where c :: (CL1 (Maybe (SubstCoerce U2 U2)))
+          c = fmap isCoerceVar x
+  -}
 
 instance Subst (CR UT1 CL1) (UT1 (CR UT1 CL1)) where
   isCoerceVar (Id a) = Just $ SubstCoerce a $ \case CR (Left a) -> Just a
@@ -91,11 +108,13 @@ instance Subst UT (UT1 UT) => Subst UT UT where
   isvar (Mu (Id a)) = Just (SubstName a)
   isvar _           = Nothing
 
-deriving instance (Eq (a (CR a b)), Eq (b(CR a b))) => Eq (CR a b)
-deriving instance (Ord (a (CR a b)), Ord (b(CR a b))) => Ord (CR a b)
-deriving instance (Show (a (CR a b)), Show (b(CR a b))) => Show (CR a b)
-deriving instance (Typeable (a (CR a b)), Typeable (b(CR a b))) => Typeable (CR a b)
-deriving instance (Generic (a (CR a b)), Generic (b(CR a b))) => Generic (CR a b)
-deriving instance (Typeable a, Typeable b, Data (a (CR a b)), Data (b (CR a b))) => Data (CR a b)
-instance (Show (a (CR a b)), Show (b (CR a b)), Generic (a (CR a b)),Generic (b (CR a b)), Alpha (a (CR a b)), Alpha (b (CR a b)) ) => Alpha (CR a b)
+-- 'CRHas' means that 'c' holds for (CR a b) unrolled in both directions
+type CRHas (c :: * -> Constraint) a b = (c (a (a :+: b)), c (b (a :+: b)))
 
+deriving instance (CRHas Eq       a b)                        => Eq       (a :+: b)
+deriving instance (CRHas Ord      a b)                        => Ord      (a :+: b)
+deriving instance (CRHas Show     a b)                        => Show     (a :+: b)
+deriving instance (CRHas Typeable a b)                        => Typeable (a :+: b)
+deriving instance (CRHas Generic  a b)                        => Generic  (a :+: b)
+deriving instance (Typeable a, Typeable b, CRHas Data a b)    => Data     (a :+: b)
+instance (CRHas Show a b, CRHas Generic a b, CRHas Alpha a b) => Alpha    (a :+: b)

@@ -84,7 +84,9 @@ leftToRight = doRewrite $ \case
 
 rightToLeft :: U2 -> U2
 rightToLeft = doRewrite $ \case
-                            Left (Lam b)   -> runFreshM $ (\(x,body) -> return $ Right (Lam2 (name2String x) body)) =<< unbind b
+                            Left (Lam b)   -> runFreshM $ do
+                              (x, body) <- unbind b
+                              return $ Right $ Lam2 (name2String x) body
                             Left (App x y) -> Right $ App2 x y
                             Left (Id n)    -> Right $ Id2 (name2String n)
                             x              -> x
