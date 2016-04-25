@@ -1,21 +1,21 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TypeFamilies          #-}
 module Recur2 where
 -- Automate the mutual recursion seen in 'Recur' module
 
 import           Control.Lens
-import           Control.Monad (liftM)
+import           Control.Monad                         (liftM)
 import           Data.Data
 import           Data.Data.Lens                        (template)
 import qualified Data.Text                             as T
+import           GHC.Generics
 import           Types
 import           Unbound.Generics.LocallyNameless
 import           Unbound.Generics.LocallyNameless.Bind (Bind (..))
 import           Unbound.Generics.LocallyNameless.Name (Name (..))
-import GHC.Generics
 
 type BindName a = Bind (Name a) a
 
@@ -89,19 +89,16 @@ rightToLeft = doRewrite $ \case
                             Left (Id n)    -> Right $ Id2 (name2String n)
                             x              -> x
 
--- And now to do generic fuzzing on an interleaved AST
-type WU a = CR UT1 a
-
 -- Large number of type-class constraints, but these can genereally be discharged automatically
 -- (See Types.hs)
-fuzz' :: (r ~ (a (WU a))
+fuzz :: ( c ~ (CR UT1 a), r ~ (a c), l ~ (UT1 c)
          , Typeable a
          , Data r, Generic r, Alpha r
-         , Subst (WU a) r , Subst (WU a) (UT1 (CR UT1 a)))
-      => WU a -> WU a
-fuzz' u = u & temp %~ (eta.liftBeta)
-  where temp :: (r ~ (a (WU a)), Typeable a, Data r, Generic r, Alpha r)
-             => Traversal' (WU a) (UT1 (WU a))
+         , Subst c r , Subst c l)
+      => c -> c
+fuzz u = u & temp %~ (eta.liftBeta)
+  where temp :: (r ~ (a (CR UT1 a)), Typeable a, Data r, Generic r, Alpha r)
+             => Traversal' (CR UT1 a) (UT1 (CR UT1 a))
         temp = template
         eta x = App (CR $ Left (Lam (bind (s2n "x") (CR $ Left x))))
                     (CR $ Left (Lam (bind (s2n "x") (CR $ Left (Id (s2n "x"))))))
@@ -109,8 +106,6 @@ fuzz' u = u & temp %~ (eta.liftBeta)
         beta x = CR (Left x)
         liftBeta x = case beta x of (CR (Left z)) -> z
                                     _             -> x
-fuzz :: U2 -> U2
-fuzz = fuzz'
 
 -- take an instance of CL1, perform some transformations on it, convert it back
 circuit :: Mu CL1 -> Maybe (Mu CL1)
