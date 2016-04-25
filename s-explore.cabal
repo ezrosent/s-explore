@@ -24,6 +24,7 @@ library
                      , QuickCheck >= 2
                      , lens >= 4
                      , mtl >= 2.1
+                     , bifunctors >= 5
   default-language:    Haskell2010
 
 executable s-explore-exe
