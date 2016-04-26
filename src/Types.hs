@@ -9,8 +9,6 @@
 {-# LANGUAGE KindSignatures            #-}
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE TemplateHaskell           #-}
 {-# LANGUAGE TypeFamilies              #-}
@@ -99,7 +97,7 @@ instance Subst U2 (CL1 U2) where
           c = fmap isCoerceVar x
   -}
 
-instance Subst (CR UT1 CL1) (UT1 (CR UT1 CL1)) where
+instance Subst U2 (UT1 U2) where
   isCoerceVar (Id a) = Just $ SubstCoerce a $ \case CR (Left a) -> Just a
                                                     CR (Right _) -> Nothing
   isCoerceVar _      = Nothing
