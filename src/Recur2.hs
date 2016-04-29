@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE ViewPatterns          #-}
+
 module Recur2 where
 -- Automate/generalize the mutual recursion seen in 'Recur' module
 -- Type definitions in 'Types.hs'
@@ -54,11 +55,11 @@ projectR' =  mapM (\case (CR (Right a)) -> Mu `liftM` projectR' a
 
 projectL :: Traversable a => CR a b -> Maybe (Mu a)
 projectL = \case (CR (Left a)) -> Mu <$> projectL' a
-                 _ -> Nothing
+                 _             -> Nothing
 
 projectR :: Traversable b => CR a b -> Maybe (Mu b)
 projectR = \case (CR (Right a)) -> Mu <$> projectR' a
-                 _ -> Nothing
+                 _              -> Nothing
 
 doRewrite :: ((UnrollC U2) -> (UnrollC U2)) -> U2 -> U2
 doRewrite f u = u & (template :: Traversal' U2 (UnrollC U2)) %~ f
