@@ -15,7 +15,14 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     UTLC, LangHierarchy, RoadMap, Recur, Recur2, Types
+  exposed-modules:     UTLC
+                     , LangHierarchy
+                     , RoadMap
+                     , Recur
+                     , Recur2
+                     , Types
+                     , Pretty
+                     , CLInterp
   build-depends:       base >= 4.7 && < 5
                      , unbound-generics
                      , text
@@ -25,6 +32,8 @@ library
                      , lens >= 4
                      , mtl >= 2.1
                      , bifunctors >= 5
+                     , pretty >= 1.1
+                     , containers >= 0.5
   default-language:    Haskell2010
 
 executable s-explore-exe

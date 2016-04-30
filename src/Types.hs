@@ -16,7 +16,7 @@
 {-# LANGUAGE TypeSynonymInstances      #-}
 {-# LANGUAGE UndecidableInstances      #-}
 -- TODO:
-  -- interpreter for CL1
+-- interpreter for CL1  <-- check!
   -- pretty-printer for CL1,UT1
   -- arbitrary instance for CL1, UT1, quick check etc.
   -- add features to CL1 or make a new language
