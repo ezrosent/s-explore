@@ -16,10 +16,10 @@
 {-# LANGUAGE TypeSynonymInstances      #-}
 {-# LANGUAGE UndecidableInstances      #-}
 -- TODO:
--- interpreter for CL1  <-- check!
-  -- pretty-printer for CL1,UT1
-  -- arbitrary instance for CL1, UT1, quick check etc.
-  -- add features to CL1 or make a new language
+--  interpreter for CL1  <-- check!
+--  pretty-printer for CL1,UT1 <- check!
+--  arbitrary instance for CL1, UT1, quick check etc.
+--  add features to CL1 or make a new language
 module Types where
 import           Control.Lens
 import           Control.Lens.TH
@@ -106,6 +106,8 @@ instance Subst U2 (UT1 U2) where
   isCoerceVar (Id a) = Just $ SubstCoerce a $ \case CR (Left a) -> Just a
                                                     CR (Right _) -> Nothing
   isCoerceVar _      = Nothing
+
+instance Plated U2
 
 -- Instances for 'UT'
 instance Subst UT (UT1 UT) where

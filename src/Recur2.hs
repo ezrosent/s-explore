@@ -61,49 +61,55 @@ projectR :: Traversable b => CR a b -> Maybe (Mu b)
 projectR = \case (CR (Right a)) -> Mu <$> projectR' a
                  _              -> Nothing
 
-doRewrite :: ((UnrollC U2) -> (UnrollC U2)) -> U2 -> U2
-doRewrite f u = u & (template :: Traversal' U2 (UnrollC U2)) %~ f
-
+dosub :: (Typeable b, Subst b r, Alpha r) => Bind (Name b) r -> b -> r
 dosub z y = runFreshM $ do
   (x, body) <- unbind z
   return $ subst x y body
 
-leftToRight :: U2 -> U2
-leftToRight = doRewrite $ \case
-  Right (Lam2 x y) -> Left $ Lam $ bind (s2n x) y
-  Right (App2 x y) -> Left $ App x y
-  Right (Id2 x)    -> Left $ Id $ s2n x
-  x                -> x
+-- Warning: transform is documented as being a bottom-to-top transformation; Does
+-- that mess with this approach? I don't think so, but it's important to keep in
+-- mind
+r2l :: U2 -> U2
+r2l = transform $ \case
+        (CR (Right (Id2 x)))    -> CR $ Left $ Id $ s2n x
+        (CR (Right (Lam2 x y))) -> CR $ Left $ Lam $ bind (s2n x) y
+        (CR (Right (App2 x y))) -> CR $ Left $ App x y
+        x                       -> x
 
-rightToLeft :: U2 -> U2
-rightToLeft = doRewrite $ \case
-  Left (Lam b) ->runFreshM $ do
-    (x, body) <- unbind b
-    return $ Right $ Lam2 (name2String x) body
-  Left (App x y) -> Right $ App2 x y
-  Left (Id n)    -> Right $ Id2 $ name2String n
-  x              -> x
+l2r' :: U2 -> U2
+l2r' = transform $ \case
+         -- (CR (Left (Id x)))      -> CR $ Right $ Id2 (name2String x)
+         -- we do this afterward, because name2String returns an error!!!!!
+         (CR (Left (Lam x)))     -> CR $ Right $ runFreshM $ do
+              (ident, body) <- unbind x
+              return $ Lam2 (name2String ident) body
+         (CR (Left (App x1 x2))) -> CR $ Right $ App2 x1 x2
+         x                       -> x
+
+l2r'' :: U2 -> U2
+l2r'' = transform $ \case
+          (CR (Left (Id x))) -> CR $ Right $ Id2 (name2String x)
+          x                  -> x
+
+l2r :: U2 -> U2
+l2r = l2r'' . l2r'
 
 -- Large number of type-class constraints, but these can genereally be discharged automatically
 -- (See Types.hs)
-fuzz :: ( c ~ (CR UT1 a), r ~ (a c), l ~ (UT1 c)
+fuzz' :: ( c ~ (CR UT1 a), r ~ (a c), l ~ (UT1 c)
          , Typeable a
-         , Data r, Generic r, Alpha r
-         , Subst c r , Subst c l)
+         , Generic r , Alpha r
+         , Plated c , Subst c r , Subst c l)
       => c -> c
-fuzz u = u & temp %~ (eta.liftBeta)
-  where temp :: ( r ~ (a (CR UT1 a))
-                , Typeable a
-                , Data r, Generic r, Alpha r)
-             => Traversal' (CR UT1 a) (UT1 (CR UT1 a))
-        temp = template
-        eta x = App (roL $ Lam $ bind (s2n "x") (roL x))
+fuzz' = transform (liftBeta.liftBeta)
+  where eta x = roL $ App (roL $ Lam $ bind (s2n "x") x)
                     (roL $ Lam $ bind (s2n "x") (roL $ Id $ s2n "x"))
         beta (App (CR (Left (Lam z))) y) = dosub z y
         beta x = roL x
-        liftBeta (beta -> CR (Left z)) = z
+        liftBeta (CR (Left z)) = beta z
         liftBeta x = x
+
 
 -- take an instance of CL1, perform some transformations on it, convert it back
 circuit :: Mu CL1 -> Maybe (Mu CL1)
-circuit = projectR . rightToLeft . fuzz . rightToLeft . injectR
+circuit = projectR . l2r . fuzz' . r2l . injectR

@@ -22,6 +22,6 @@ instance (Pretty a, Typeable a, Alpha a) => Pretty (UT1 a) where
 
 instance Pretty a => Pretty (CL1 a) where
   pPrint (Id2 c)      = text c
-  pPrint (Lam2 c1 c2) = lbrack <> text "lambda" <+> (text c1) $$ nest 2 (pPrint c2) <> rbrack
-  pPrint (App2 c1 c2) = lbrack <> (pPrint c1) <+> (pPrint c2) <> rbrack
+  pPrint (Lam2 c1 c2) = lbrack <> text "lambda" <+> (text c1) <+> (pPrint c2) <> rbrack
+  pPrint (App2 c1 c2) = lbrack <> (pPrint c1) $$ (nest 2 (pPrint c2)) <> rbrack
 
