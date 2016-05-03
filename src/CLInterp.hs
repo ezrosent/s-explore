@@ -4,6 +4,7 @@ import           Control.Lens
 import           Control.Monad                  (liftM)
 import qualified Data.Map                       as M
 import           Data.Maybe                     (fromMaybe)
+import           Test.QuickCheck
 import           Text.PrettyPrint.HughesPJClass
 
 import           Pretty
@@ -30,9 +31,9 @@ interpFuzz = fmap (\x -> (interpCl' x, x)) . circuit
 
 renderCase :: Mu CL1 -> Maybe Doc
 renderCase x = fmap (\(fz, x2) -> text   "Standard Evaluation"
-                         $$ nest 2 (pPrint x) <+> text "==>" <+> (pPrint regular)
-                         $$ text   "Fuzzed Evaluation"
-                         $$ nest 2 (pPrint x2) <+> text "==>" <+> (pPrint fz)) fuzzed
+                               $$ nest 2 (pPrint x)  <+> text "==>" <+> (pPrint regular)
+                               $$ text   "Fuzzed Evaluation"
+                               $$ nest 2 (pPrint x2) <+> text "==>" <+> (pPrint fz)) fuzzed
   where fuzzed  = interpFuzz x
         regular = interpCl' x
 
@@ -49,3 +50,8 @@ testDynScope :: Mu CL1
 testDynScope = Mu $ App2 (Mu (Lam2 "x" (Mu (App2 (Mu (Id2 "x")) (Mu (Id2 "y"))))))
                          (Mu (Id2 "x"))
 
+gen :: IO [Mu CL1]
+gen = sample' arbitrary
+
+samples :: IO (Maybe [Doc])
+samples = return . mapM renderCase =<< gen

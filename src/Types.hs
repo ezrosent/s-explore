@@ -1,28 +1,35 @@
-{-# LANGUAGE ConstraintKinds           #-}
-{-# LANGUAGE DeriveDataTypeable        #-}
-{-# LANGUAGE DeriveFoldable            #-}
-{-# LANGUAGE DeriveFunctor             #-}
-{-# LANGUAGE DeriveGeneric             #-}
-{-# LANGUAGE DeriveTraversable         #-}
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE KindSignatures            #-}
-{-# LANGUAGE LambdaCase                #-}
-{-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE StandaloneDeriving        #-}
-{-# LANGUAGE TemplateHaskell           #-}
-{-# LANGUAGE TypeFamilies              #-}
-{-# LANGUAGE TypeOperators             #-}
-{-# LANGUAGE TypeSynonymInstances      #-}
-{-# LANGUAGE UndecidableInstances      #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DeriveDataTypeable    #-}
+{-# LANGUAGE DeriveFoldable        #-}
+{-# LANGUAGE DeriveFunctor         #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DeriveTraversable     #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE UndecidableInstances  #-}
+
 -- TODO:
 --  interpreter for CL1  <-- check!
 --  pretty-printer for CL1,UT1 <- check!
---  arbitrary instance for CL1, UT1, quick check etc.
+--  arbitrary instance for CL1, UT1, quick check etc. <-- check!, though uncovering bugs
 --  add features to CL1 or make a new language
+--
+--  More examples, maybe just a naive substitution algorithm if we can't figure out the bug
+--  A naive algorithm could reduce the amount of deriving we have to do as well...
 module Types where
-import           Control.Lens
+
+import           Control.Lens                          (Plated, bimap)
 import           Control.Lens.TH
+import           Control.Monad                         (liftM, liftM2)
 import           Data.Bifunctor.TH
 import           Data.Data
 import           Data.Data.Lens
@@ -30,6 +37,7 @@ import qualified Data.Text                             as T
 import           Data.Typeable                         (Typeable)
 import           GHC.Exts
 import           GHC.Generics                          (Generic)
+import           Test.QuickCheck
 import           Unbound.Generics.LocallyNameless
 import           Unbound.Generics.LocallyNameless.Bind (Bind (..))
 import           Unbound.Generics.LocallyNameless.Name (Name (..))
@@ -55,6 +63,19 @@ data CL1 a = Id2 String | Lam2 String a | App2 a a
   deriving ( Eq, Ord, Show, Functor, Data
            , Typeable, Generic, Foldable , Traversable)
 
+instance Arbitrary (a (Mu a)) => Arbitrary (Mu a) where
+  arbitrary = Mu `liftM` arbitrary
+
+instance Arbitrary (CL1 (Mu CL1)) where
+  arbitrary = sized exp
+    -- values+general approach taken from lambda-calc example in QuickCheck repo
+    where exp n = frequency $ (2, fmap Id2 idGen):fmap (if n>0 then 5 else 0,) [
+              liftM2 Lam2 idGen (recur (n-1)),
+              liftM2 App2 half half]
+                where half    = recur (n `div` 2)
+                      recur n = fmap Mu (exp n)
+                      idGen = elements (map pure $ ['a'..'z'] ++ ['A' .. 'Z'])
+
 makePrisms ''UT1
 makePrisms ''CL1
 
@@ -78,9 +99,9 @@ deriving instance Functor Name
 $(deriveBifunctor ''Bind)
 
 -- instances for UT1
-deriving instance (Typeable a) => Typeable (UT1 a)
-deriving instance (Generic a) => Generic (UT1 a)
-deriving instance (Data a) => Data (UT1 a)
+deriving instance (Typeable a)            => Typeable (UT1 a)
+deriving instance (Generic a)             => Generic (UT1 a)
+deriving instance (Data a)                => Data (UT1 a)
 instance (Typeable a, Generic a, Alpha a) => Alpha (UT1 a)
 instance (Typeable a, Generic a, Alpha a) => Eq (UT1 a) where (==) = aeq
 

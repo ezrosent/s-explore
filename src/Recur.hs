@@ -16,9 +16,6 @@ import qualified Data.Text       as T
 import           Data.Typeable   (Typeable)
 import           GHC.Generics    (Generic)
 
-
-newtype Mu f = Mu (f (Mu f))
-
 data UT
   = Id T.Text
   | Lam T.Text UT
@@ -41,7 +38,6 @@ data Identity a = Identity a deriving (Eq, Ord, Show, Functor)
 
 normalize :: UT -> UT
 normalize c = c & _Uninterp %~ convert
-
 
 -- todo uniplate
 convert :: CL -> CL
