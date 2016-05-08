@@ -294,6 +294,171 @@ maybe this is a good thing?
 % the first. Given an interpreter for the modeled language, we can then search for
 % surprises in an automated fashion.
 
+\section{Current Implementation}
+
+Here we detail the current Haskell implementation of the sketches above. We
+assume that a language is given as an Algebraic Data-type (ADT) with the
+recursive knot untied, namely, given an expression language like:
+
+\begin{minted}{haskell}
+data Exp = Number Integer | Add Exp Exp
+\end{minted}
+
+We expect it to be given as
+\begin{minted}{haskell}
+data Exp a = Number Integer | Add a a
+\end{minted}
+
+Which is a straightforward transformation. Given this unrolled representation,
+it is possible to ``tie the knot'' manually with a \texttt{newtype}-ed
+Y-combinator, like so:
+\begin{minted}{haskell}
+newtype Mu f = Mu (f (Mu f))
+
+type Exp' = Exp (Mu Exp)
+\end{minted}
+
+We use a simple extension to this, which to our knowledge is new, to allow for
+two ADTs to be interleaved:
+
+\begin{minted}{haskell}
+newtype CR a b = CR (Either (a (CR a b)) (b (CR a b)))
+type a :+: b = CR a b
+\end{minted}
+
+We then use the popular \texttt{lens} library to execute the following workflow,
+given a language to model $\L_1$ and a language for which we have rules
+regarding referential transparency ($\L_0$).
+
+\begin{enumerate}[(1)]
+\item Write rules translating $\L_1$ variants into $\L_0$ ones. This need only
+  have the type \texttt{a :+: b -> a :+: b}, so they should be shallow, and then
+  \texttt{lens} can apply the rules until it reaches a fixed point. Inverse
+  rules should also be written
+  
+\item ``Fuzz'' using a QuickCheck Arbitrary instances, the subterms in $\L_0$
+  for referentially transparent ones (e.g.~$\beta$-reduction/expansion)
+  
+\item Apply the inverse rules, compare the output(s) to evaluating the
+  unadulterated expression.
+\end{enumerate}
+
+Note that the inverse rules and mapping rules are very similar to the platonic
+ideal of just explaining what AST nodes are functions. This framework also
+allows for easily testing (using Quickcheck properties) whether or not the
+mappings are true inverses invariant under the substitutions made by step 2.
+
+\section{Orthogonality}
+
+A special case of the notion of sublanguage described above is the notion of
+feature interaction. It is considered desirable for a language feature to be
+implemented in an \emph{orthogonal} manner, a term which is informally taken to
+mean ``doesn't cause other features in the language to behave
+unexpectedly''\footnote{Another use-case is that of redundancy. Feature X is not
+orthogonal to feature Y if we can accomplish some class of programs with either
+X or Y. I don't think we cover that here}. We can model this has partitioning a
+given language into the language with and without the feature, and consider
+surprising cases in that context. While this may appear to be a mere exercise,
+it is very similar to the process of testing a new language implementation
+against preexisting programs.
+
+The purpose of this section, however, is to show how it is possible to provide a
+language implementation that is orthogonal by construction; in fact,
+orthogonality will be a free theorem, assuming a program is written with the
+proper type signature. Consider an ADT for an untyped $\lambda$-calculus with
+simple types:
+
+\begin{minted}{haskell}
+data Exp 
+  = Id String 
+  | Lam String Exp 
+  | App Exp Exp 
+  | ArithOp (Integer -> Integer -> Integer) Exp Exp 
+  | N Integer
+  | BoolOp (Bool -> Bool -> Bool) Exp Exp
+  | B Bool
+  | IF Exp Exp Exp
+\end{minted}
+
+We can now annotate this ADT with feature-specific information, where
+\texttt{:++} is append for type-level lists.
+
+\begin{minted}{haskell}
+
+-- Empty phantom types denoting present features
+data UTLC
+data Booleans
+data Arithmetic
+data Exp  :: [*] -> * where
+  Id      :: String -> Exp [UTLC]
+  Lam     :: String -> Exp a -> Exp (UTLC ': a)
+  App     :: Exp a -> Exp b -> Exp (UTLC ': (a :++ b))
+  ArithOp :: (Integer -> Integer -> Integer) 
+          -> Exp a -> Exp b -> Exp (Arithmetic ': (a :++ b))
+  N       :: Integer -> Exp [Arithmetic]
+  BoolOp  :: (Bool -> Bool -> Bool) 
+          -> Exp a -> Exp b -> Exp (Booleans ': (a :++ b))
+  IF      :: Exp a -> Exp b -> -> Exp c -> Exp (Booleans ': (a :++ b :++ c))
+  B       :: Bool -> Exp [Booleans]
+-- Existentially quantified expression type
+data SomeExp = forall ls. SE (Exp ls)
+data Val = NV Integer | BV Boolean | Clos SomeExp 
+\end{minted}
+
+We can then implement an interpreter feature-by-feature using a variant of the ``extensible
+\verb|letrec|'' trick: Here is how we would implement the \texttt{Arithmetic} interpreter.
+
+\begin{minted}{haskell}
+arithEval :: (forall a. Exp a -> Maybe Val) -> Exp (Arithmetic ': b) -> Maybe Val
+\end{minted}
+\begin{minted}{haskell}
+arithEval _    (N n)           = Just (NV n)
+arithEval eval (ArithOp f a b) = (NV . f) <$> (eval a) <*> (eval b)
+\end{minted}
+\begin{minted}{haskell}
+utlcEval :: (forall a. Exp a -> Maybe Val) -> Exp (UTLC ': b)        -> Maybe Val
+-- ...
+\end{minted}
+\begin{minted}{haskell}
+boolEval :: (forall a. Exp a -> Maybe Val) -> Exp (Booleans ': b)    -> Maybe Val
+-- ...
+\end{minted}
+\begin{minted}{haskell}
+eval :: Exp a -> Maybe val
+eval (Id s)          = utlcEval  eval (Id s)
+eval (Lam s b)       = utlcEval  eval (Lam s b)
+eval (App a b)       = utlcEval  eval (App a b)
+eval (ArithOp f a b) = arithEval eval (ArithOp f a b)
+eval (N n)           = arithEval eval (N n)
+eval (BoolOp f a b)  = boolEval  eval (BoolOp f a b)
+eval (IF c a b)      = boolEval  eval (If c a b)
+eval (B b)           = boolEval  eval (B b)
+\end{minted}
+
+Note now we can state a clean notion of sublanguage. A sublanguage is just an
+ADT with a type-level list containing some subset of the possible features. To
+prove orthogonality, we have to say that the evaluation of any sublanguage is
+compositional: it is identical regardless of what additional features are in the
+language. But this is just a free theorem given the type signature of the
+\texttt{*Eval} functions; they cannot possibly have an impact on additional
+features because they cannot inspect the abstract type parameter \texttt{b}! The
+remainder of the proof is to verify that \texttt{eval} does the obvious thing
+with each of these helper functions: a process that could easily be automated.
+
+Hence, we have provided a scheme for building interpreters for languages that
+are orthogonal \emph{by construction} and implement this without the need for
+full dependent types.
+
+\paragraph{Doubts/Concerns} There is something fishy about using parametricity when
+considering GADTs. Each of these helper functions can just pattern-match on
+all of the values of subterms. However, we could still get parametricity if we
+insist that they live in a separate module, and not require to be recompiled if
+\texttt{Exp} is augmented, but then we would require a stronger module system
+than what Haskell currently has. I think we are close to something useful
+though. Unrolling the data-type definition could help.
+
+
+
 \section{Denotational Setting}
 We can give the same definition in the context of denotational semantics. This
 gives a more concise characterization of surprise in terms of commutative

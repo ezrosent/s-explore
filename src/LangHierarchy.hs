@@ -7,6 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE ExistentialQuantification #-}
 module LangHierarchy where
 
 import qualified Data.Text                        as T
@@ -35,8 +36,34 @@ type NoLang  l ls  = (Find l (ListOf ls) ~ False)
 --  testw :: Witness (HasLang Bools)
 --  testw = W $ (If (B True) (N 1) (N 2))
 -- But of course that doesn't work!
+--
+--
+data SomeExp = forall l. SE (Exp l)
+
+data Val = Number Integer | Func SomeExp  | Bl Bool
+
+evTrue :: Exp a -> Maybe Val
+evTrue = undefined
+
+-- this is essentially the "extensible letrec" trick
+-- we can easily pass in a function of type (Exp a -> Maybe Val)
+
+ev :: Exp ('Bools ': a) -> Maybe Val
+ev (If a b c)     = case (evTrue a) of
+                      (Just (Bl True))  -> undefined
+                      (Just (Bl False)) -> undefined
+                      _ -> Nothing
+
+ev (B b)          = Just $ Bl b
+ev (BoolOp f a b) = do
+  a' <- evTrue a
+  b' <- evTrue b
+  case (a', b') of
+    (Bl ab, Bl bb) -> return $ Bl (f ab bb)
+    _ -> Nothing
 
 data Exp :: [Lang] -> * where
+  --TODO: fix this
   Var :: (Name (BasicExp a))                       -> BasicExp a
   Lam :: Bind (Name (BasicExp a)) (BasicExp a)     -> BasicExp a
   App :: BasicExp a -> BasicExp a                  -> BasicExp a
