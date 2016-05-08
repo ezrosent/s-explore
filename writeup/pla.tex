@@ -413,7 +413,11 @@ arithEval :: (forall a. Exp a -> Maybe Val) -> Exp (Arithmetic ': b) -> Maybe Va
 \end{minted}
 \begin{minted}{haskell}
 arithEval _    (N n)           = Just (NV n)
-arithEval eval (ArithOp f a b) = (NV . f) <$> (eval a) <*> (eval b)
+arithEval eval (ArithOp f a b) = do 
+  a' <- eval a
+  b' <- eval b
+  case (a', b') of (Just x, Just y) -> return $ NV $ f x y
+                   _ -> Nothing
 \end{minted}
 \begin{minted}{haskell}
 utlcEval :: (forall a. Exp a -> Maybe Val) -> Exp (UTLC ': b)        -> Maybe Val
