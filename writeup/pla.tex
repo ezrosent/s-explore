@@ -416,7 +416,7 @@ arithEval _    (N n)           = Just (NV n)
 arithEval eval (ArithOp f a b) = do 
   a' <- eval a
   b' <- eval b
-  case (a', b') of (Just x, Just y) -> return $ NV $ f x y
+  case (a', b') of (Just (NV x), Just (NV y)) -> return $ NV $ f x y
                    _ -> Nothing
 \end{minted}
 \begin{minted}{haskell}
