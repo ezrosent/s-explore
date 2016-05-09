@@ -380,26 +380,23 @@ data Exp
   | IF Exp Exp Exp
 \end{minted}
 
-We can now annotate this ADT with feature-specific information, where
-\texttt{:++} is append for type-level lists.
+% We can now annotate this ADT with feature-specific information, where
+% \texttt{:++} is append for type-level lis% t
+
+We can instead break this out into separate datatypes:
 
 \begin{minted}{haskell}
 
 -- Empty phantom types denoting present features
-data UTLC
-data Booleans
-data Arithmetic
-data Exp  :: [*] -> * where
-  Id      :: String -> Exp [UTLC]
-  Lam     :: String -> Exp a -> Exp (UTLC ': a)
-  App     :: Exp a -> Exp b -> Exp (UTLC ': (a :++ b))
-  ArithOp :: (Integer -> Integer -> Integer) 
-          -> Exp a -> Exp b -> Exp (Arithmetic ': (a :++ b))
-  N       :: Integer -> Exp [Arithmetic]
-  BoolOp  :: (Bool -> Bool -> Bool) 
-          -> Exp a -> Exp b -> Exp (Booleans ': (a :++ b))
-  IF      :: Exp a -> Exp b -> -> Exp c -> Exp (Booleans ': (a :++ b :++ c))
-  B       :: Bool -> Exp [Booleans]
+% data Lang = UTLC | Booleans | Arithmetic
+data UTExp a  = Id String | Lam String a | App a
+data ArithExp a  = N Integer | ArithOp (Integer -> Integer -> Integer) a
+data BoolExp a  = B Boolean | BoolOp (Boolean -> Boolean -> Boolean) a
+data Exp  where
+   AE :: ArithExp Exp -> Exp 
+   BE :: BoolExp  Exp -> Exp 
+   UE :: UTExp    Exp -> Exp 
+  
 -- Existentially quantified expression type
 data SomeExp = forall ls. SE (Exp ls)
 data Val = NV Integer | BV Boolean | Clos SomeExp 
@@ -409,7 +406,7 @@ We can then implement an interpreter feature-by-feature using a variant of the `
 \verb|letrec|'' trick: Here is how we would implement the \texttt{Arithmetic} interpreter.
 
 \begin{minted}{haskell}
-arithEval :: (forall a. Exp a -> Maybe Val) -> Exp (Arithmetic ': b) -> Maybe Val
+arithEval :: (a -> Maybe Val) -> ArithExp a -> Maybe Val
 \end{minted}
 \begin{minted}{haskell}
 arithEval _    (N n)           = Just (NV n)
@@ -420,47 +417,47 @@ arithEval eval (ArithOp f a b) = do
                    _ -> Nothing
 \end{minted}
 \begin{minted}{haskell}
-utlcEval :: (forall a. Exp a -> Maybe Val) -> Exp (UTLC ': b)        -> Maybe Val
+boolEval :: (a -> Maybe Val) -> BoolExp a -> Maybe Val
 -- ...
 \end{minted}
 \begin{minted}{haskell}
-boolEval :: (forall a. Exp a -> Maybe Val) -> Exp (Booleans ': b)    -> Maybe Val
+utlcEval :: (a -> Maybe Val) -> UTExp a -> Maybe Val
 -- ...
 \end{minted}
 \begin{minted}{haskell}
-eval :: Exp a -> Maybe val
-eval (Id s)          = utlcEval  eval (Id s)
-eval (Lam s b)       = utlcEval  eval (Lam s b)
-eval (App a b)       = utlcEval  eval (App a b)
-eval (ArithOp f a b) = arithEval eval (ArithOp f a b)
-eval (N n)           = arithEval eval (N n)
-eval (BoolOp f a b)  = boolEval  eval (BoolOp f a b)
-eval (IF c a b)      = boolEval  eval (If c a b)
-eval (B b)           = boolEval  eval (B b)
+eval :: Exp -> Maybe val
+eval (AE a) = arithEval eval a
+eval (BE a) = boolEVal eval a
+eval (UE a) = utlcEval eval a
 \end{minted}
 
 Note now we can state a clean notion of sublanguage. A sublanguage is just an
-ADT with a type-level list containing some subset of the possible features. To
-prove orthogonality, we have to say that the evaluation of any sublanguage is
-compositional: it is identical regardless of what additional features are in the
-language. But this is just a free theorem given the type signature of the
-\texttt{*Eval} functions; they cannot possibly have an impact on additional
-features because they cannot inspect the abstract type parameter \texttt{b}! The
-remainder of the proof is to verify that \texttt{eval} does the obvious thing
-with each of these helper functions: a process that could easily be automated.
+ADT with some subset of the possible features (i.e. some of the variants of
+\texttt{Exp}). To prove orthogonality, we have to say that the evaluation of any
+sublanguage is compositional: it is identical regardless of what additional
+features are in the language. But this is just a free theorem given the type
+signature of the \texttt{*Eval} functions; they cannot possibly have an impact
+on additional features because they cannot inspect the abstract type parameter
+\texttt{a}! The remainder of the proof is to verify that \texttt{eval} does the
+obvious thing with each of these helper functions: a process that could easily
+be automated.
 
 Hence, we have provided a scheme for building interpreters for languages that
 are orthogonal \emph{by construction} and implement this without the need for
 full dependent types.
 
-\paragraph{Doubts/Concerns} There is something fishy about using parametricity when
-considering GADTs. Each of these helper functions can just pattern-match on
-all of the values of subterms. However, we could still get parametricity if we
-insist that they live in a separate module, and not require to be recompiled if
-\texttt{Exp} is augmented, but then we would require a stronger module system
-than what Haskell currently has. I think we are close to something useful
-though. Unrolling the data-type definition could help.
+\paragraph{Formalizing Sublanguage in the type system} We could decorate
+expression variants with type-level lists, we may maintain parametricity but may
+require fancy rank-n types. Worth considering soon.
 
+
+% \paragraph{Doubts/Concerns} There is something fishy about using parametricity when
+% considering GADTs. Each of these helper functions can just pattern-match on
+% all of the values of subterms. However, we could still get parametricity if we
+% insist that they live in a separate module, and not require to be recompiled if
+% \texttt{Exp} is augmented, but then we would require a stronger module system
+% than what Haskell currently has. I think we are close to something useful
+% though. Unrolling the data-type definition could help.
 
 
 \section{Denotational Setting}
