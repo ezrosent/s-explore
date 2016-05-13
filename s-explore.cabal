@@ -23,6 +23,7 @@ library
                      , Types
                      , Pretty
                      , CLInterp
+                     , Orthog
   build-depends:       base >= 4.7 && < 5
                      , unbound-generics
                      , text

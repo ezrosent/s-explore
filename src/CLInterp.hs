@@ -11,6 +11,24 @@ import           Pretty
 import           Recur2
 import           Types
 
+-- TODO: copy over ... or just give CL an environment semantics!
+data UTEnv a = IdE String | AppE a a | LamE String a
+
+newtype UTE = UTE (M.Map String Clos)
+
+data Clos = Cl UTE String (Mu UTEnv)
+
+
+interpEnv :: (Mu UTEnv) -> Maybe Clos
+interpEnv (Mu a) = go (UTE M.empty) a
+  where go :: UTE -> (UTEnv (Mu UTEnv)) -> Maybe Clos
+        go (UTE env) (IdE c)  = M.lookup c env
+        go e@(UTE env) (AppE (Mu c1) (Mu c2)) = do
+          (Cl (UTE env2) s (Mu body)) <- (go e c1)
+          argpos <- (go e c2)
+          go (UTE (M.insert s argpos env2)) body
+        go env (LamE c1 c2) = return $ Cl env c1 c2
+
 -- no need for mutual recursion or value type, as we don't have closures!
 type Env = M.Map String (CL1 (Mu CL1))
 
