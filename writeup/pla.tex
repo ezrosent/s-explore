@@ -386,9 +386,6 @@ data Exp
 We can instead break this out into separate datatypes:
 
 \begin{minted}{haskell}
-
--- Empty phantom types denoting present features
-% data Lang = UTLC | Booleans | Arithmetic
 data UTExp a  = Id String | Lam String a | App a
 data ArithExp a  = N Integer | ArithOp (Integer -> Integer -> Integer) a
 data BoolExp a  = B Boolean | BoolOp (Boolean -> Boolean -> Boolean) a
@@ -398,8 +395,7 @@ data Exp  where
    UE :: UTExp    Exp -> Exp 
   
 -- Existentially quantified expression type
-data SomeExp = forall ls. SE (Exp ls)
-data Val = NV Integer | BV Boolean | Clos SomeExp 
+data Val = NV Integer | BV Boolean | Clos Exp
 \end{minted}
 
 We can then implement an interpreter feature-by-feature using a variant of the ``extensible
@@ -444,11 +440,14 @@ be automated.
 
 Hence, we have provided a scheme for building interpreters for languages that
 are orthogonal \emph{by construction} and implement this without the need for
-full dependent types.
+full dependent types. Note that this construction is essentially 
+\texttt{ArithExp :+: BoolExp :+: UTExp}: very similar to the construction we had
+before of a sublanguage!
 
 \paragraph{Formalizing Sublanguage in the type system} We could decorate
 expression variants with type-level lists, we may maintain parametricity but may
-require fancy rank-n types. Worth considering soon.
+require fancy rank-n types. Worth considering soon. We can easily write a
+predicate in a dependently typed language, but that would be cheating!
 
 
 % \paragraph{Doubts/Concerns} There is something fishy about using parametricity when
@@ -464,6 +463,8 @@ require fancy rank-n types. Worth considering soon.
 We can give the same definition in the context of denotational semantics. This
 gives a more concise characterization of surprise in terms of commutative
 diagrams.
+
+
 
 % describe the "Kan extension" at work here. This relates to what Shriram
 % mentioned with big-step vs small-step.
