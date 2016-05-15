@@ -1,6 +1,6 @@
 \documentclass[12pt]{article}
 \usepackage{graphicx,datetime,fancyhdr,amsmath,amssymb,amsthm,subfig,url,hyperref}
-\usepackage{paralist,semantic,minted,latexsym}
+\usepackage{paralist,semantic,minted,latexsym,diagrams}
 \usepackage{titling,float,multicol,setspace,titlesec,framed}
 \usepackage[margin=1in]{geometry}
 %----------------------- Macros and Definitions --------------------------
@@ -462,12 +462,22 @@ predicate in a dependently typed language, but that would be cheating!
 \section{Denotational Setting}
 We can give the same definition in the context of denotational semantics. This
 gives a more concise characterization of surprise in terms of commutative
-diagrams.
+diagrams. Given a sublanguage $\L' \subseteq \L$ modeled by a language
+$\lambda$, we have the following diagram (where $\epsilon$ is an evaluation function).
+\begin{diagram}
+  & & \L' & &\\
+  \L & \ldDashto(2,3)^{\mathbf{F}}\ldInto(2,1)& \dTo_{\epsilon_{\L'}} & \rdDashto(2,3)^{\mathbf{G}}\rdTo(2,1)& \lambda \\
+  \dTo_{\epsilon_{\L}} & & \L'_v& & \dTo_{\epsilon_{\lambda}} \\
+  \L_v & \ldInto(2,1)& \lDashto^{\mathbf{H}} & \luTo(2,1)& \lambda_v \\
+\end{diagram}
 
-
-
-% describe the "Kan extension" at work here. This relates to what Shriram
-% mentioned with big-step vs small-step.
+I believe this can be given a categorical meaning, where syntax is taken to be a
+category based on the partial ordering induced by the sub-term relation, and a
+compositional denotational semantics is hence a functor from this category to
+some domain. Surprise is therefore, informally, the degree to which the triangle
+of $F,G,H$ \emph{fails to commute}. This shape also bares some passing
+similarity to a Kan extension; it would be interesting if this could be made
+more precise.
 
 
 \end{document}
