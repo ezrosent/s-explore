@@ -150,15 +150,15 @@ doFuzz :: ( c ~ (CR UT1 a), r ~ (a c), l ~ (UT1 c)
          , Generic r , Alpha r
          , Plated c , Subst c r , Subst c l)
       => DoFuzz -> c -> c
-doFuzz (Fuzz e b) = transform (bs . es)
-  where eta x = roL $ App (roL $ Lam $ bind (s2n "x") x)
-                    (roL $ Lam $ bind (s2n "x") (roL $ Id $ s2n "x"))
+doFuzz (Fuzz e b) = transform bs  -- (bs.es)
+  where -- eta x = roL $ App (roL $ Lam $ bind (s2n "x") x)
+        --          (roL $ Lam $ bind (s2n "x") (roL $ Id $ s2n "x"))
         beta (App (CR (Left (Lam z))) y) = dosub z y
         beta x = roL x
         liftBeta (CR (Left z)) = beta z
         liftBeta x = x
         doTimes n f = foldr (.) id (replicate n f)
-        es = doTimes e eta
+        -- es = doTimes e eta
         bs = doTimes b liftBeta
 
 -- take an instance of CL1, perform some transformations on it, convert it back

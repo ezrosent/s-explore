@@ -18,7 +18,7 @@ library
   exposed-modules:     UTLC
                      , LangHierarchy
                      , RoadMap
-                     , Recur
+                     -- , Recur
                      , Recur2
                      , Types
                      , Pretty

@@ -1,0 +1,311 @@
+\documentclass{beamer}
+
+\usetheme{bjeldbak}
+\usepackage{minted}
+% \usepackage[minted]{tcolorbox}
+\renewcommand{\L}{\mathcal{L}}
+\newcommand{\E}{\mathcal{E}}
+
+\title{Semantics Exploration: Avoiding Surprise in Language Design}
+\author{Eli Rosenthal}
+
+\begin{document}
+{%
+  \setbeamertemplate{headline}{}
+  \frame{\titlepage}
+}
+
+\tableofcontents
+
+\section{Introduction}
+\begin{frame}
+  \frametitle{When are Languages Surprising?}
+  
+  \begin{itemize}
+  \item A lot of programming languages have similar constructs. For various
+    reasons, programmers build up certain models of how these constructs behave.
+    \pause
+  \item \emph{Personal Example:} I expect lexical scoping when I encounter a feature in a
+    new language described as a ``lambda function.''
+    \begin{itemize}
+    \item Possibly because my first language was an HtDP teaching language,
+      followed closely by ML.
+    \item Also potentially because I gravitate to static scoping disciplines because
+      they are more compositional than dynamic scope.
+    \end{itemize}
+    \pause
+  \item Another common example is the extent to which standard arithmetic
+    operators are not commutative or even associative in many popular
+    programming languages, be it due to floating point, or ``OO''$+$ operator overloading.
+
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+  \frametitle{Background/Related Work}
+  {\small \it I wasn't sure there was any$\ldots$ but then Shriram told me to
+    look at this paper}
+  \begin{itemize}
+  \item Felleisen's 1990 paper ``On the Expressive Power of Programming
+    Languages.'' Provides a formal account of how expressive a language is based on
+    operational semantics, as opposed to computability.
+
+  \item Define a language $\L$ as a set of freely generated \emph{phrases} from
+    a grammar, a subset of valid programs, a set of values, and an
+    \emph{operational semantics}
+
+  \item The above definition gives rise to a natural notion of
+    \emph{sublanguage}, and \emph{syntactic abstraction}
+    
+   \item This provides a formal foundation for how expressive a language is,
+     based on what features can be expressed in terms of some desugaring
+     (skipping over many details here) that preserves behavioral equivalence.
+
+   \item This set of definitions also (albiet implicitly) lays out conditions
+     for features to be implemented orthogonally, 
+
+  \end{itemize}
+  
+\end{frame}
+
+\begin{frame}
+  \frametitle{Roadmap}
+  \begin{itemize}
+  \item Surprise
+
+    \begin{itemize}
+    \item Formal/idealized Definition
+    \item Practical implementation/tooling
+    \end{itemize}
+
+  \item Orthogonality (How might we avoid surprises?)
+
+    \begin{itemize}
+    \item Writing interpreters as \emph{compositions of features} that are
+      orthogonal by costruction (and hence compositional).
+    \end{itemize}
+    
+ 
+  \end{itemize}
+  
+\end{frame}
+
+\section{Surprise: Theory and Practice}
+\subsection{Theory}
+\begin{frame}
+  \frametitle{Surprise: the Ideal case}
+  Consider two langauges, R, and the $\lambda$ calculus.
+  \begin{itemize}
+  \item In an idealized setting, assume these languages have some notion of
+    syntax, and an operational semantics.
+  \item Ask the question of ``to what extent is R's scoping surprising?''
+    \begin{itemize}
+    \item This implies a syntactic mapping $\E$ of the sort 
+      \[
+        \E(\texttt{function(a,b)d}) = \lambda a\,b.~\E(d)
+      \]    
+      Along with some natural inverse mapping. Note that this mapping can even
+      be partial, implicitly introducing stuck states in $\lambda$; these act as
+      uninterpreted values.
+
+    \item If we can extend this syntactic mapping to a mapping of
+      \emph{evaluation contexts}, then we can create a hybrid
+      operational semantics that applies this mapping, takes some number of
+      $\lambda$ evaluation steps, and maps it back to $R$.
+      
+
+    \end{itemize}
+  \item If this new composite relation is nondeterministic, then there is some
+    sequence of $\lambda$-calculus reduction steps that breaks with R's
+    semantics.
+  \end{itemize}
+  
+\end{frame}
+
+\begin{frame}
+  \frametitle{Limitations}
+  \begin{itemize}
+
+  \item I think this is actually a nice definition, and seems to fit into a
+    natural extension into Felleisen's framework. It's really
+    Felleisen+re-sugaring, allowing us to consider behavioral equivalence in the
+    host language as opposed to the de-sugared language. {\small Assuming I'm
+      understanding the paper right}
+
+    \pause
+
+  \item But it significantly limits what languages we can model; we would need
+    an operational semantics for R, which is $\mathfrak{not~easy}$
+    \pause
+    
+  \item[\emph{Idea}] Limit ourselves to syntactic mappings + evaluator for the big language,
+    see how far we can get.
+    
+  \end{itemize}
+\end{frame}
+\subsection{Practice}
+
+\begin{frame}[fragile]
+  \frametitle{Algebraic Data-types and Recursion}
+  We will operate on \emph{unrolled} algebraic data-types (ADTs), i.e. given a
+  standard recursive ADT
+\begin{minted}{haskell}
+data Exp = Number Integer | Add Exp Exp
+\end{minted}
+We expect it to be given as
+\begin{minted}{haskell}
+data Exp a = Number Integer | Add a a
+\end{minted}
+Where we can recover a type isomorphic to the original \texttt{Exp} by tying the
+recursive knot ourselves:
+\begin{minted}{haskell}
+newtype Mu f = Mu (f (Mu f))
+type Exp' = Exp (Mu Exp)
+\end{minted}
+
+This grants us greater flexibility.
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Interleaving Two ADTs}
+
+  This representation allows us to account for two ADTS where each term allows
+  sub-terms of either type.
+\begin{minted}{haskell}
+newtype CR a b = CR (Either (a (CR a b)) (b (CR a b)))
+type a :+: b = CR a b
+\end{minted}
+
+This lets us define easy syntactic mappings and fuzzing operations.
+
+(Look at Code)
+
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Testing for violations}
+  \begin{itemize}
+
+  \item Given this mapping, we can subsitute terms in for referentially
+    transparent ones.
+
+  \item With the $\lambda$-calculus, this is some number of $\beta$/$\eta$ rule
+    applications.
+    
+  \item This, along with \texttt{Arbitrary} instances, is fertile ground for
+    automated counterexample finding!
+
+  \end{itemize}
+  
+(Look at Code)
+
+\end{frame}
+
+\section{Orthogonality}
+
+\begin{frame}[fragile]
+  \frametitle{Avoiding Surprise}
+  \begin{itemize}
+
+  \item A related notion to surprise is that of \emph{orthogonality}, which (I
+    think) is the idea that different language features do not interact in
+    destructive ways.
+
+  \item This implies some notion of composition: if a given features does
+    not interfere with others, than evaluation should be the structural thing
+    that we expect. 
+
+  \item[\emph{Idea}] Reverse-engineer the syntactic approach from before to
+    create features that are orthogonal by construction.
+
+  \end{itemize}
+
+\end{frame}
+\begin{frame}[fragile]
+  Consider this simple language:
+\begin{minted}{haskell}
+data Exp 
+  = Id String 
+  | Lam String Exp 
+  | App Exp Exp 
+  | ArithOp (Integer -> Integer -> Integer) Exp Exp 
+  | N Integer
+  | BoolOp (Bool -> Bool -> Bool) Exp Exp
+  | B Bool
+  | IF Exp Exp Exp
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+  Then refactor it into its component features, and unwrapped:
+  \begin{minted}{haskell}
+data UTExp a  = Id String | Lam String a | App a
+data ArithExp a  = N Integer | ArithOp (Integer -> Integer -> Integer) a
+data BoolExp a  = B Boolean | BoolOp (Boolean -> Boolean -> Boolean) a
+data Exp = AE ArithExp | BE BoolExp | UE UTExp
+
+-- value type!
+data Val = NV Integer | BV Boolean | Clos Exp
+\end{minted}
+
+\end{frame}
+
+\begin{frame}[fragile]
+  Then write an evaluator with the ``extensible let-rec trick''
+\begin{minted}{haskell}
+arithEval _    (N n)           = Just (NV n)
+arithEval eval (ArithOp f a b) = do 
+  a' <- eval a
+  b' <- eval b
+  case (a', b') of 
+     (Just (NV x), Just (NV y)) -> return $ NV $ f x y
+     _ -> Nothing
+\end{minted}
+\begin{minted}{haskell}
+boolEval :: (a -> Maybe Val) -> BoolExp a -> Maybe Val
+-- ...
+\end{minted}
+\begin{minted}{haskell}
+utlcEval :: (a -> Maybe Val) -> UTExp a -> Maybe Val
+-- ...
+\end{minted}
+\begin{minted}{haskell}
+eval :: Exp -> Maybe val
+eval (AE a) = arithEval eval a
+eval (BE a) = boolEVal eval a
+eval (UE a) = utlcEval eval a
+\end{minted}
+
+\end{frame}
+
+\begin{frame}
+  \frametitle{What's the Point?}
+    \begin{itemize}
+    \item Parametricity
+      \begin{itemize}
+      \item The evaluators for individual features cannot even inspect what
+        features are in the languages.
+      \item Orthogonality appears to be a free theorem!
+      \end{itemize}
+      \pause
+    \item Though there are some scaling issues, a lot of this can be automated.
+      \pause
+    \item Also elucidates ``copmosition'' bent to earlier part of project. Note
+      that 
+      \[
+        \texttt{Exp}  \simeq \texttt{ArithExp :+: UTExp :+: BoolExp}
+      \]
+
+      If some compositional language models the features of a larger one, then
+      it effectively factors out into a ``bag-of-features'' data type, and
+      quick-check is what ensures parametricity.
+    \end{itemize}
+  
+\end{frame}
+\begin{frame}
+  
+\centerline{That's about it! Questions?}
+  
+\end{frame}
+\end{document}

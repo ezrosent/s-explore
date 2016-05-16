@@ -59,7 +59,7 @@ instance Functor UT1 where
   fmap f (Lam a) = Lam $ bimap (fmap f) f a
   fmap f (App a1 a2) = App (f a1) (f a2)
 
-data CL1 a = Id2 String | Lam2 String a | App2 a a
+data CL1 a = Id2 String | Lam2 String a | App2 a a | NumLit Integer | Plus a a
   deriving ( Eq, Ord, Show, Functor, Data
            , Typeable, Generic, Foldable , Traversable)
 
@@ -69,12 +69,14 @@ instance Arbitrary (a (Mu a)) => Arbitrary (Mu a) where
 instance Arbitrary (CL1 (Mu CL1)) where
   arbitrary = sized exp
     -- values+general approach taken from lambda-calc example in QuickCheck repo
-    where exp n = frequency $ (2, fmap Id2 idGen):fmap (if n>0 then 5 else 0,) [
-              liftM2 Lam2 idGen (recur (n-1)),
-              liftM2 App2 half half]
+    where exp n = frequency $ (2, fmap Id2 idGen):(2, fmap NumLit arbitrary):fmap (if n>0 then 5 else 0,) [
+                        liftM2 Lam2 idGen (recur (n-1))
+                      , liftM2 App2 half half
+                      , liftM2 Plus half half]
                 where half    = recur (n `div` 2)
                       recur n = fmap Mu (exp n)
-                      idGen = elements (map pure $ ['a'..'z'] ++ ['A' .. 'Z'])
+                      idGen   = elements (map pure $ ['a'..'z'] ++ ['A' .. 'Z'])
+
 
 makePrisms ''UT1
 makePrisms ''CL1
@@ -136,7 +138,7 @@ instance Subst UT (UT1 UT) where
   isCoerceVar _      = Nothing
 
 instance Subst UT (UT1 UT) => Subst UT UT where
-  isvar (Mu (Id a)) = Just (SubstName a)
+  -- isvar (Mu (Id a)) = Just (SubstName a)
   isvar _           = Nothing
 
 -- Useful type families

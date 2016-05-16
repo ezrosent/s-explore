@@ -24,4 +24,6 @@ instance Pretty a => Pretty (CL1 a) where
   pPrint (Id2 c)      = text c
   pPrint (Lam2 c1 c2) = lbrack <> text "lambda" <+> (text c1) <+> (pPrint c2) <> rbrack
   pPrint (App2 c1 c2) = lbrack <> (pPrint c1) $$ (nest 2 (pPrint c2)) <> rbrack
+  pPrint (NumLit n)   = text $ show $ n
+  pPrint (Plus n m)   = lbrack <> (pPrint n) <+> text "+" <+> (pPrint m) <> rbrack
 
