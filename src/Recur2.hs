@@ -15,6 +15,7 @@ import           Control.Monad                    (liftM)
 import           Data.Data
 import           Data.Data.Lens                   (template)
 import qualified Data.Text                        as T
+import Test.QuickCheck
 import           GHC.Generics                     (Generic)
 import           Types
 import           Unbound.Generics.LocallyNameless
@@ -134,6 +135,37 @@ fuzz' = transform (liftBeta.eta.liftBeta)
         liftBeta (CR (Left z)) = beta z
         liftBeta x = x
 
+data DoFuzz = Fuzz {
+    etaExpand :: Int
+  , betaReduce :: Int
+  }
+  deriving (Eq, Show)
+
+instance Arbitrary DoFuzz where
+  arbitrary = Fuzz <$> arbitrary <*> arbitrary
+
+
+doFuzz :: ( c ~ (CR UT1 a), r ~ (a c), l ~ (UT1 c)
+         , Typeable a
+         , Generic r , Alpha r
+         , Plated c , Subst c r , Subst c l)
+      => DoFuzz -> c -> c
+doFuzz (Fuzz e b) = transform (bs . es)
+  where eta x = roL $ App (roL $ Lam $ bind (s2n "x") x)
+                    (roL $ Lam $ bind (s2n "x") (roL $ Id $ s2n "x"))
+        beta (App (CR (Left (Lam z))) y) = dosub z y
+        beta x = roL x
+        liftBeta (CR (Left z)) = beta z
+        liftBeta x = x
+        doTimes n f = foldr (.) id (replicate n f)
+        es = doTimes e eta
+        bs = doTimes b liftBeta
+
 -- take an instance of CL1, perform some transformations on it, convert it back
 circuit :: Mu CL1 -> Maybe (Mu CL1)
 circuit = projectR . l2r . fuzz' . rwR2l . injectR
+
+propModel :: Eq v => (Mu CL1 -> v) -> DoFuzz ->  Mu CL1 -> Bool
+propModel ev df cl = let ev1 = ev cl in
+                         maybe False (\x -> (ev x) == ev1) (fuzz cl)
+  where fuzz = projectR . l2r . doFuzz df . rwR2l . injectR

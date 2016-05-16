@@ -1,22 +1,22 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ConstraintKinds           #-}
+{-# LANGUAGE DeriveDataTypeable        #-}
+{-# LANGUAGE DeriveFoldable            #-}
+{-# LANGUAGE DeriveFunctor             #-}
+{-# LANGUAGE DeriveGeneric             #-}
+{-# LANGUAGE DeriveTraversable         #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE DeriveDataTypeable    #-}
-{-# LANGUAGE DeriveFoldable        #-}
-{-# LANGUAGE DeriveFunctor         #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE DeriveTraversable     #-}
-{-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
+{-# LANGUAGE TypeOperators             #-}
 
 module Orthog where
 
-import           Types (CR(..), (:+:), Mu(..))
-import           Unbound.Generics.LocallyNameless
-import Data.Data (Data)
-import Data.Typeable (Typeable)
+import           Data.Data                        (Data)
+import           Data.Typeable                    (Typeable)
 import           GHC.Generics                     (Generic)
+import           Types                            ((:+:), CR (..), Mu (..))
+import           Unbound.Generics.LocallyNameless
 
 
 data ArithExp a = N Integer | ArithOp (Integer -> Integer -> Integer) a a
@@ -66,19 +66,19 @@ instance MayEval ArithExp Val where
     a2' <- ev a2
     case (a1', a2') of
       ((NV a), (NV b)) -> return $ NV $ f a b
-      _              -> Nothing
+      _                -> Nothing
 
 instance MayEval BoolExp Val where
   rinterp (BV b) = return (B b)
   rinterp _      = Nothing
 
-  eval ev _ _ (B a)              = return $ BV a
+  eval ev _ _ (B a)             = return $ BV a
   eval ev _ _ (BoolOp f a1 a2)  = do
     a1' <- ev a1
     a2' <- ev a2
     case (a1', a2') of
       ((BV a), (BV b)) -> return $ BV $ f a b
-      _              -> Nothing
+      _                -> Nothing
 
 instance MayEval UTExp Val where
   rinterp (Clos x@(Lam _)) = return $ x
