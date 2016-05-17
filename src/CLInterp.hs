@@ -25,7 +25,6 @@ instance Eq ValT where
   (Cl _ _ _) == (Cl _ _ _) = True
   _ == _ = False
 
-
 interpEnv :: (Mu CL1) -> Maybe ValT
 interpEnv (Mu a) = go (UTE M.empty) a
   where go :: UTE -> (CL1 (Mu CL1)) -> Maybe ValT
@@ -55,17 +54,19 @@ interpCl' = Mu . interpCl . (^.unMu)
 interpCl ::  CL1 (Mu CL1) -> CL1 (Mu CL1)
 interpCl = go M.empty
   where go :: Env -> CL1 (Mu CL1) -> CL1 (Mu CL1)
-        go env x@(Plus (Mu a1) (Mu a2)) = let a1' = go env a1
-                                              a2' = go env a2
-                                           in case (a1', a2') of
-                                                (NumLit n, NumLit m) -> NumLit (n+m)
-                                                _ -> (Plus (Mu a1') (Mu a2'))
+        go env x@(Plus (Mu a1) (Mu a2)) =
+          let a1' = go env a1
+              a2' = go env a2
+           in case (a1', a2') of
+                (NumLit n, NumLit m) -> NumLit (n+m)
+                _ -> (Plus (Mu a1') (Mu a2'))
         go env x@(NumLit _)   = x
         go env x@(Id2 c)      = fromMaybe x $ M.lookup c env
         go env x@(Lam2 _ _)   = x
-        go env x@(App2 c1 c2) = case go env (c1^.unMu) of
-                                  (Lam2 d1 d2) -> go (M.insert d1 (go env (c2^.unMu)) env) (d2^.unMu)
-                                  _            -> App2 c1 (Mu $ go env (c2^.unMu))
+        go env x@(App2 c1 c2) =
+          case go env (c1^.unMu) of
+            (Lam2 d1 d2) -> go (M.insert d1 (go env (c2^.unMu)) env) (d2^.unMu)
+            _            -> App2 c1 (Mu $ go env (c2^.unMu))
 
 interpFuzz :: Mu CL1 -> Maybe (Mu CL1, Mu CL1)
 interpFuzz = fmap (\x -> (interpCl' x, x)) . circuit

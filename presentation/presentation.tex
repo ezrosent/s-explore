@@ -6,7 +6,7 @@
 \renewcommand{\L}{\mathcal{L}}
 \newcommand{\E}{\mathcal{E}}
 
-\title{Semantics Exploration: Avoiding Surprise in Language Design}
+\title{Semantics Exploration: Surprise in Language Design}
 \author{Eli Rosenthal}
 
 \begin{document}
@@ -241,8 +241,12 @@ data Exp
   Then refactor it into its component features, and unwrapped:
   \begin{minted}{haskell}
 data UTExp a  = Id String | Lam String a | App a
-data ArithExp a  = N Integer | ArithOp (Integer -> Integer -> Integer) a
-data BoolExp a  = B Boolean | BoolOp (Boolean -> Boolean -> Boolean) a
+data ArithExp a  
+    = N Integer 
+    | ArithOp (Integer -> Integer -> Integer) a
+data BoolExp a 
+    = B Boolean 
+    | BoolOp (Boolean -> Boolean -> Boolean) a
 data Exp = AE ArithExp | BE BoolExp | UE UTExp
 
 -- value type!
